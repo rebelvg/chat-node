@@ -1,6 +1,6 @@
 import * as SocketServer from 'socket.io';
 
-const io = SocketServer(3000);
+const io = SocketServer(8000);
 
 interface HelloMessage {
   name: string;
