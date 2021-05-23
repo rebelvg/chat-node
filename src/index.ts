@@ -13,14 +13,13 @@ interface RoomEvent {
 }
 
 interface MessageEvent {
-  name: string;
-  room: string;
   text: string;
 }
 
 const CHAT_CLIENTS: {
   socket: Socket;
   lastMessage: Date;
+  room: string;
   name: string;
 }[] = [];
 
@@ -32,6 +31,7 @@ io.on('connection', (socket) => {
   const client = {
     socket,
     lastMessage: new Date(0),
+    room: null,
     name: null,
   };
 
@@ -56,6 +56,8 @@ io.on('connection', (socket) => {
 
     await socket.join(data.room);
 
+    client.room = data.room;
+
     const sameNameClient = _.find(
       CHAT_CLIENTS,
       (chatClient) => chatClient.name === data.name,
@@ -69,8 +71,8 @@ io.on('connection', (socket) => {
 
     client.name = data.name;
 
-    io.to(data.room).emit('message_event', {
-      ...data,
+    io.to(client.room).emit('message_event', {
+      name: client.name,
       text: `joined the room...`,
     });
   });
@@ -81,7 +83,7 @@ io.on('connection', (socket) => {
       MESSAGE_TIMEOUT_IN_MS
     ) {
       socket.emit('message_event', {
-        ...data,
+        name: client.name,
         text: 'TIMEOUT_LIMIT_EXCEEDED',
       });
 
@@ -94,14 +96,17 @@ io.on('connection', (socket) => {
 
     if (data.text.length > 128) {
       socket.emit('message_event', {
-        ...data,
+        name: client.name,
         text: 'TEXT_TOO_LONG',
       });
 
       return;
     }
 
-    io.to(data.room).emit('message_event', data);
+    io.to(client.room).emit('message_event', {
+      name: client.name,
+      text: data.text,
+    });
 
     client.lastMessage = new Date();
   });
