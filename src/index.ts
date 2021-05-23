@@ -1,33 +1,110 @@
-import * as SocketServer from 'socket.io';
+import { Server, Socket } from 'socket.io';
+import * as _ from 'lodash';
 
-const io = SocketServer(8000);
+const io = new Server(8000, {
+  cors: {
+    origin: '*',
+  },
+});
 
-interface HelloMessage {
+interface RoomEvent {
   name: string;
   room: string;
 }
 
-interface ChatMessage {
+interface MessageEvent {
   name: string;
   room: string;
   text: string;
 }
 
-io.on('connection', socket => {
+const CHAT_CLIENTS: {
+  socket: Socket;
+  lastMessage: Date;
+  name: string;
+}[] = [];
+
+const MESSAGE_TIMEOUT_IN_MS = 500;
+
+io.on('connection', (socket) => {
   console.log('connection');
 
-  socket.on('hello', (data: HelloMessage) => {
-    socket.join(data.room, () => {
-      io.to(data.room).emit('chat_message', {
-        ...data,
-        text: `${data.name} joined the room...`
-      });
+  const client = {
+    socket,
+    lastMessage: new Date(0),
+    name: null,
+  };
+
+  CHAT_CLIENTS.push(client);
+
+  socket.on('disconnect', () => {
+    console.log('disconnect');
+
+    _.remove(CHAT_CLIENTS, (chatClient) => {
+      return chatClient === client;
     });
   });
 
-  socket.on('chat_message', (data: ChatMessage) => {
-    io.to(data.room).emit('chat_message', data);
+  socket.on('room_event', async (data: RoomEvent) => {
+    if (!data.room) {
+      return;
+    }
+
+    if (data.room.length > 128) {
+      return;
+    }
+
+    await socket.join(data.room);
+
+    const sameNameClient = _.find(
+      CHAT_CLIENTS,
+      (chatClient) => chatClient.name === data.name,
+    );
+
+    if (sameNameClient) {
+      socket.emit('bad_name');
+
+      return;
+    }
+
+    client.name = data.name;
+
+    io.to(data.room).emit('message_event', {
+      ...data,
+      text: `joined the room...`,
+    });
+  });
+
+  socket.on('message_event', (data: MessageEvent) => {
+    if (
+      new Date().getTime() - client.lastMessage.getTime() <
+      MESSAGE_TIMEOUT_IN_MS
+    ) {
+      socket.emit('message_event', {
+        ...data,
+        text: 'TIMEOUT_LIMIT_EXCEEDED',
+      });
+
+      return;
+    }
+
+    if (!data.text) {
+      return;
+    }
+
+    if (data.text.length > 128) {
+      socket.emit('message_event', {
+        ...data,
+        text: 'TEXT_TOO_LONG',
+      });
+
+      return;
+    }
+
+    io.to(data.room).emit('message_event', data);
+
+    client.lastMessage = new Date();
   });
 });
 
-console.log('server started...');
+console.log('server_running');
