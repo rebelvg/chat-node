@@ -1,7 +1,9 @@
 import { Server, Socket } from 'socket.io';
 import * as _ from 'lodash';
 
-const io = new Server(8000, {
+import { SOCKET_PORT } from './config';
+
+const io = new Server(SOCKET_PORT, {
   cors: {
     origin: '*',
   },
