@@ -1,9 +1,5 @@
-import * as fs from 'fs';
+import { env } from './env';
 
-const config = JSON.parse(
-  fs.readFileSync('./config.json', { encoding: 'utf-8' }),
-);
-
-console.log('config', config);
-
-export const SOCKET_PORT = config.SOCKET_PORT;
+export const SERVER = {
+  PORT: Number.parseInt(env.API_PORT),
+};
